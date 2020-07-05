@@ -1,6 +1,8 @@
 #ifndef _INDEX_
 #define _INDEX_
 
+#include <stdbool.h>
+
 /* PGSIZE is normally the natural page size of the machine */
 #define PGSIZE 512
 #define NUMDIMS 2 /* number of dimensions */
@@ -12,7 +14,7 @@
 typedef size_t tid_t;
 #endif
 
-typedef float RectReal;
+typedef double RectReal;
 
 /*-----------------------------------------------------------------------------
 | Global definitions.
@@ -28,28 +30,29 @@ typedef float RectReal;
 #define NUMSIDES 2 * NUMDIMS
 
 struct Rect {
-  RectReal boundary[NUMSIDES]; /* xmin,ymin,...,xmax,ymax,... */
+	bool is_use;
+	RectReal boundary[NUMSIDES]; /* xmin,ymin,...,xmax,ymax,... */
 };
 
 struct Node;
 
 struct Branch {
-  struct Rect rect;
-  struct Node *child;
+	struct Rect rect;
+	struct Node *child;
 };
 
 /* max branching factor of a node */
 #define MAXCARD (int)((PGSIZE - (2 * sizeof(int))) / sizeof(struct Branch))
 
 struct Node {
-  int count;
-  int level; /* 0 is leaf, others positive */
-  struct Branch branch[MAXCARD];
+	int count;
+	int level; /* 0 is leaf, others positive */
+	struct Branch branch[MAXCARD];
 };
 
 struct ListNode {
-  struct ListNode *next;
-  struct Node *node;
+	struct ListNode *next;
+	struct Node *node;
 };
 
 /*

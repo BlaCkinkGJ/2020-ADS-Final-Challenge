@@ -12,9 +12,10 @@
 
 const double log_pi = log(M_PI);
 
-double sphere_volume(double dimension) {
-  double log_gamma, log_volume;
-  log_gamma = gamma(dimension / 2.0 + 1);
-  log_volume = dimension / 2.0 * log_pi - log_gamma;
-  return exp(log_volume);
+double sphere_volume(double dimension)
+{
+	double log_gamma, log_volume;
+	log_gamma = gamma(dimension / 2.0 + 1);
+	log_volume = dimension / 2.0 * log_pi - log_gamma;
+	return exp(log_volume);
 }

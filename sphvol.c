@@ -29,14 +29,16 @@
 #define M_PI 3.1415926535
 #endif
 
-static void print_volume(int dimension, double volume) {
-  printf("\t%.6f,  /* dimension %3d */\n", volume, dimension);
+static void print_volume(int dimension, double volume)
+{
+	printf("\t%.6f,  /* dimension %3d */\n", volume, dimension);
 }
 
-static double sphere_volume(double dimension) {
-  const double log_pi = log(M_PI);
-  double log_gamma, log_volume;
-  log_gamma = gamma(dimension / 2.0 + 1);
-  log_volume = dimension / 2.0 * log_pi - log_gamma;
-  return exp(log_volume);
+static double sphere_volume(double dimension)
+{
+	const double log_pi = log(M_PI);
+	double log_gamma, log_volume;
+	log_gamma = gamma(dimension / 2.0 + 1);
+	log_volume = dimension / 2.0 * log_pi - log_gamma;
+	return exp(log_volume);
 }
