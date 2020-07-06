@@ -5,8 +5,11 @@
 #include <malloc.h>
 #include <stdio.h>
 
-// Make a new index, empty.  Consists of a single node.
-//
+/**
+ * @brief 하나의 노드로 구성된 비어있는 새로운 인덱스를 만들도록 합니다.
+ *
+ * @return 새롭게 생성된 노드 x를 반환합니다.
+ */
 struct Node *RTreeNewIndex()
 {
 	struct Node *x;
@@ -15,17 +18,21 @@ struct Node *RTreeNewIndex()
 	return x;
 }
 
-// Search in an index tree or subtree for all data retangles that
-// overlap the argument rectangle.
-// Return the number of qualifying data rects.
-//
+/**
+ * @brief 매개 변수로 준 사각형에 겹쳐지는 모든 사각형을 반환합니다.
+ *
+ * @param N root에 해당합니다.
+ * @param R 겹쳐지는 범위(탐색 범위)에 해당합니다.
+ * @param shcb 데이터를 찾았을 때의 callback 함수에 해당합니다.
+ * @param cbarg 추가적인 매개 변수 값입니다.
+ *
+ * @return 만난 사각형의 갯수를 반환합니다.
+ */
 int RTreeSearch(struct Node *N, struct Rect *R, SearchHitCallback shcb,
 		void *cbarg)
 {
 	register struct Node *n = N;
-	register struct Rect *r =
-		R; // NOTE: Suspected bug was R sent in as Node* and
-	// cast to Rect* here. Fix not yet tested.
+	register struct Rect *r = R;
 	register int hitCount = 0;
 	register int i;
 
@@ -33,47 +40,46 @@ int RTreeSearch(struct Node *N, struct Rect *R, SearchHitCallback shcb,
 	assert(n->level >= 0);
 	assert(r);
 
-	if (n->level > 0) /* this is an internal node in the tree */
-	{
+	if (n->level > 0) { /**< 트리의 내장 노드의 경우 */
 		for (i = 0; i < NODECARD; i++)
 			if (n->branch[i].child &&
 			    RTreeOverlap(r, &n->branch[i].rect)) {
 				hitCount += RTreeSearch(n->branch[i].child, R,
 							shcb, cbarg);
 			}
-	} else /* this is a leaf node */
-	{
+	} else { /**< 트리의 leaf 노드의 경우 */
 		for (i = 0; i < LEAFCARD; i++)
 			if (n->branch[i].child &&
 			    RTreeOverlap(r, &n->branch[i].rect)) {
 				hitCount++;
-				if (shcb) // call the user-provided callback
+				if (shcb) /**< callback 함수 부여 여부 확인 */
 					if (!shcb((tid_t)n->branch[i].child,
 						  cbarg))
-						return hitCount; // callback wants to terminate search early
+						return hitCount; /**< callback 함수에서 에러가 발생한 경우 */
 			}
 	}
 	return hitCount;
 }
 
-// Inserts a new data rectangle into the index structure.
-// Recursively descends tree, propagates splits back up.
-// Returns 0 if node was not split.  Old node updated.
-// If node was split, returns 1 and sets the pointer pointed to by
-// new_node to point to the new node.  Old node updated to become one of two.
-// The level argument specifies the number of steps up from the leaf
-// level to insert; e.g. a data rectangle goes in at level = 0.
-//
+/**
+ * @brief 인덱스 구조에 새로운 사각형 데이터를 넣어주도록 합니다.
+ *
+ * @details 트리를 재귀적으로 내려간 후에 다시 올라가면서 분할(split)을 합니다.
+ * 0이 반환되는 경우에는 이전 노드가 갱신되었음을 의미하고,
+ * 1이 반환되는 경우에는 분할이 발생을 하여 새로운 노드로 포인터를 설정해주도록 합니다.
+ * 이전 노드는 2개 중 하나로 갱신되게 됩니다.
+ *
+ * @param r 사각형을 가리킵니다.
+ * @param tid 사각형의 id에 해당합니다.
+ * @param n 새로운 노드에 해당합니다.
+ * @param new_node 새로운 노드를 가리키는 포인터의 포인터입니다.
+ * @param level 삽입에서 leaf level 까지의 step 수를 의미합니다.
+ *
+ * @return 노드가 split이 된 경우 0을 안된 경우에는 1을 반환
+ */
 static int RTreeInsertRect2(struct Rect *r, tid_t tid, struct Node *n,
 			    struct Node **new_node, int level)
 {
-	/*
-          register struct Rect *r = R;
-          register int tid = Tid;
-          register struct Node *n = N, **new_node = New_node;
-          register int level = Level;
-  */
-
 	register int i;
 	struct Branch b;
 	struct Node *n2;
@@ -81,46 +87,45 @@ static int RTreeInsertRect2(struct Rect *r, tid_t tid, struct Node *n,
 	assert(r && n && new_node);
 	assert(level >= 0 && level <= n->level);
 
-	// Still above level for insertion, go down tree recursively
-	//
+	/**
+	 * @brief leaf 노드가 아닌 경우 아래로 계속 내려가도록 합니다.
+	 *
+	 */
 	if (n->level > level) {
 		i = RTreePickBranch(r, n);
 		if (!RTreeInsertRect2(r, tid, n->branch[i].child, &n2, level)) {
-			// child was not split
-			//
 			n->branch[i].rect =
 				RTreeCombineRect(r, &(n->branch[i].rect));
 			return 0;
-		} else // child was split
-		{
+		} else { /**< child가 분할된 경우에 해당합니다. */
 			n->branch[i].rect = RTreeNodeCover(n->branch[i].child);
 			b.child = n2;
 			b.rect = RTreeNodeCover(n2);
 			return RTreeAddBranch(&b, n, new_node);
 		}
-	}
-
-	// Have reached level for insertion. Add rect, split if necessary
-	//
-	else if (n->level == level) {
+	} else if (n->level == level) {
+		/**
+		 * @brief: 삽입을 위한 level에 도달하면 추가하고자 하는 사각형을 추가하고 분할을 합니다.
+		 */
 		b.rect = *r;
 		b.child = (struct Node *)tid;
-		/* child field of leaves contains tid of data record */
 		return RTreeAddBranch(&b, n, new_node);
 	} else {
-		/* Not supposed to happen */
 		assert(FALSE);
 		return 0;
 	}
 }
 
-// Insert a data rectangle into an index structure.
-// RTreeInsertRect provides for splitting the root;
-// returns 1 if root was split, 0 if it was not.
-// The level argument specifies the number of steps up from the leaf
-// level to insert; e.g. a data rectangle goes in at level = 0.
-// RTreeInsertRect2 does the recursion.
-//
+/**
+ * @brief index 구조에 사각형 데이터를 삽입합니다.
+ *
+ * @param R 삽입되는 사각형에 해당합니다.
+ * @param Tid 삽입되는 사각형의 ID에 해당합니다.
+ * @param Root R-Tree의 루트에 해당합니다.
+ * @param Level leaf level에서 삽입까지 얼만큼 왔는 지를 확인하는 변수입니다.
+ *
+ * @return split이 발생한 경우 1을 반환, 그렇지 않은 경우 0을 반환합니다.
+ */
 int RTreeInsertRect(struct Rect *R, tid_t Tid, struct Node **Root, int Level)
 {
 	register struct Rect *r = R;
@@ -138,9 +143,9 @@ int RTreeInsertRect(struct Rect *R, tid_t Tid, struct Node **Root, int Level)
 	for (i = 0; i < NUMDIMS; i++)
 		assert(r->boundary[i] <= r->boundary[NUMDIMS + i]);
 
-	if (RTreeInsertRect2(r, tid, *root, &newnode, level)) /* root split */
-	{
-		newroot = RTreeNewNode(); /* grow a new root, & tree taller */
+	if (RTreeInsertRect2(r, tid, *root, &newnode,
+			     level)) { /**< 루트에 대해 split을 진행합니다.*/
+		newroot = RTreeNewNode(); /**< 새로운 루트를 만들어 냅니다. */
 		newroot->level = (*root)->level + 1;
 		b.rect = RTreeNodeCover(*root);
 		b.child = *root;
@@ -169,12 +174,18 @@ static struct ListNode *RTreeNewListNode()
 static void RTreeFreeListNode(struct ListNode *p)
 {
 	free(p);
-	// delete(p);
 }
 
 // Add a node to the reinsertion list.  All its branches will later
 // be reinserted into the index structure.
 //
+/**
+ * @brief 노드를 재삽입 리스트에 넣어줍니다.
+ * 향후 모든 브랜치들은 인덱스 구조체에 재삽입됩니다.
+ *
+ * @param n 재삽입 리스트에 들어갈 노드
+ * @param ee 히스트 노드의 head
+ */
 static void RTreeReInsert(struct Node *n, struct ListNode **ee)
 {
 	register struct ListNode *l;
@@ -185,11 +196,18 @@ static void RTreeReInsert(struct Node *n, struct ListNode **ee)
 	*ee = l;
 }
 
-// Delete a rectangle from non-root part of an index structure.
-// Called by RTreeDeleteRect.  Descends tree recursively,
-// merges branches on the way back up.
-// Returns 1 if record not found, 0 if success.
-//
+/**
+ * @brief index 구조체의 일부분에서 루트가 아닌 사각형을 제거합니다.
+ *
+ * @details 재귀적으로 트리를 들어가서 루트로 올라가면서 merge를 진행합니다.
+ *
+ * @param R 지우고자 하는 사각형 정보
+ * @param Tid 지우고자 하는 사각형의 id
+ * @param N 노드를 가리키는 포인터
+ * @param Ee node들의 리스트 head에 해당합니다.
+ *
+ * @return 레코드를 찾은 경우 0, 못 찾은 경우 1을 반환합니다.
+ */
 static int RTreeDeleteRect2(struct Rect *R, tid_t Tid, struct Node *N,
 			    struct ListNode **Ee)
 {
@@ -203,8 +221,7 @@ static int RTreeDeleteRect2(struct Rect *R, tid_t Tid, struct Node *N,
 	assert(tid >= 0);
 	assert(n->level >= 0);
 
-	if (n->level > 0) // not a leaf node
-	{
+	if (n->level > 0) { /**< 리프 노드가 아닌 경우*/
 		for (i = 0; i < NODECARD; i++) {
 			if (n->branch[i].child &&
 			    RTreeOverlap(r, &(n->branch[i].rect))) {
@@ -216,9 +233,11 @@ static int RTreeDeleteRect2(struct Rect *R, tid_t Tid, struct Node *N,
 							.rect = RTreeNodeCover(
 							n->branch[i].child);
 					else {
-						// not enough entries in child,
-						// eliminate child node
-						//
+						/**
+						 * @brief 자식(child) 노드에 충분하지 않은 엔트리가 있는 경우에
+						 * 자식 노드를 제거합니다.
+						 *
+						 */
 						RTreeReInsert(
 							n->branch[i].child, ee);
 						RTreeDisconnectBranch(n, i);
@@ -228,8 +247,7 @@ static int RTreeDeleteRect2(struct Rect *R, tid_t Tid, struct Node *N,
 			}
 		}
 		return 1;
-	} else // a leaf node
-	{
+	} else { /**< 리프 노드인 경우 */
 		for (i = 0; i < LEAFCARD; i++) {
 			if (n->branch[i].child &&
 			    n->branch[i].child == (struct Node *)tid) {
@@ -241,11 +259,16 @@ static int RTreeDeleteRect2(struct Rect *R, tid_t Tid, struct Node *N,
 	}
 }
 
-// Delete a data rectangle from an index structure.
-// Pass in a pointer to a Rect, the tid of the record, ptr to ptr to root node.
-// Returns 1 if record not found, 0 if success.
-// RTreeDeleteRect provides for eliminating the root.
-//
+/**
+ * @brief index 구조로부터 사각형 데이터를 제거하도록 합니다.
+ *
+ * @param R 사각형을 가리키는 포인터
+ * @param Tid 레코드의 id에 해당합니다.
+ * @param Nn root node 포인터의 포인터에 해당합니다.
+ *
+ * @return 1은 레코드를 찾은 것이고, 0은 찾지 못한 것입니다.
+ * @note root의 제거가 발생할 수 있습니다. 
+ */
 int RTreeDeleteRect(struct Rect *R, tid_t Tid, struct Node **Nn)
 {
 	register struct Rect *r = R;
@@ -261,9 +284,11 @@ int RTreeDeleteRect(struct Rect *R, tid_t Tid, struct Node **Nn)
 	assert(tid >= 0);
 
 	if (!RTreeDeleteRect2(r, tid, *nn, &reInsertList)) {
-		/* found and deleted a data item */
-
-		/* reinsert any branches from eliminated nodes */
+		/**
+		 * @brief 삭제할 데이터를 찾은 경우에 브랜치들로부터
+		 * 제거되어진 노드들을 가져와서 재삽입을 진행합니다.
+		 *
+		 */
 		while (reInsertList) {
 			tmp_nptr = reInsertList->node;
 			for (i = 0; i < MAXKIDS(tmp_nptr); i++) {
@@ -274,14 +299,20 @@ int RTreeDeleteRect(struct Rect *R, tid_t Tid, struct Node **Nn)
 						nn, tmp_nptr->level);
 				}
 			}
+			/**
+			 * @brief: 마지막으로 재삽입 리스트에 들어간 노드가
+			 * leaf 노드이자 삭제 대상이므로 삭제해줍니다.
+			 */
 			e = reInsertList;
 			reInsertList = reInsertList->next;
 			RTreeFreeNode(e->node);
 			RTreeFreeListNode(e);
 		}
 
-		/* check for redundant root (not leaf, 1 child) and eliminate
-     */
+		/**
+		 * @brief: leaf가 아니면서 1개의 child를 가지는
+		 * 중복된 루트를 확인해서 제거합니다.
+		 */
 		if ((*nn)->count == 1 && (*nn)->level > 0) {
 			for (i = 0; i < NODECARD; i++) {
 				tmp_nptr = (*nn)->branch[i].child;

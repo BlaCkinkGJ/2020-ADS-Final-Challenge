@@ -5,8 +5,6 @@
 extern int NODECARD;
 extern int LEAFCARD;
 
-/* balance criteria for node splitting */
-/* NOTE: can be changed if needed. */
 #define MinNodeFill (NODECARD / 2)
 #define MinLeafFill (LEAFCARD / 2)
 

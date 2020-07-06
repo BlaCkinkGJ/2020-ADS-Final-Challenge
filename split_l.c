@@ -5,9 +5,12 @@
 #include "index.h"
 #include <stdio.h>
 
-/*-----------------------------------------------------------------------------
-| Load branch buffer with branches from full node plus the extra branch.
------------------------------------------------------------------------------*/
+/**
+ * @brief 꽉찬 노드로 부터 브랜치들을 브랜치 버퍼로 가져와서 추가적인 브랜치에 추가하도록 합니다.
+ *
+ * @param N 꽉찬 노드를 가리킵니다.
+ * @param B 추가적인 브랜치에 해당합니다.
+ */
 static void RTreeGetBranches(struct Node *N, struct Branch *B)
 {
 	register struct Node *n = N;
@@ -17,15 +20,14 @@ static void RTreeGetBranches(struct Node *N, struct Branch *B)
 	assert(n);
 	assert(b);
 
-	/* load the branch buffer */
-	for (i = 0; i < MAXKIDS(n); i++) {
-		assert(n->branch[i].child); /* every entry should be full */
+	for (i = 0; i < MAXKIDS(n); i++) { /**< 브랜치 버퍼로 가져옵니다. */
+		assert(n->branch[i].child); /**< 엔트리가 꽉 찼는지 확인 */
 		BranchBuf[i] = n->branch[i];
 	}
-	BranchBuf[MAXKIDS(n)] = *b;
+	BranchBuf[MAXKIDS(n)] = *b; /**< 추가적인 브랜치를 넣어줍니다. */
 	BranchCount = MAXKIDS(n) + 1;
 
-	/* calculate rect containing all in the set */
+	/* 집합에 있는 모든 Recctangle에 대해 계산합니다.*/
 	CoverSplit = BranchBuf[0].rect;
 	for (i = 1; i < MAXKIDS(n) + 1; i++) {
 		CoverSplit = RTreeCombineRect(&CoverSplit, &BranchBuf[i].rect);
@@ -34,9 +36,13 @@ static void RTreeGetBranches(struct Node *N, struct Branch *B)
 	RTreeInitNode(n);
 }
 
-/*-----------------------------------------------------------------------------
-| Initialize a PartitionVars structure.
------------------------------------------------------------------------------*/
+/**
+ * @brief PartitionVars 구조체를 초기화 합니다.
+ *
+ * @param P 초기화 하고자 하는 PartitionVars 구조체 입니다.
+ * @param maxrects 최대 사각형 갯수에 해당합니다.
+ * @param minfill 차야하는 최소 값에 해당합니다.
+ */
 static void RTreeInitPVars(struct PartitionVars *P, int maxrects, int minfill)
 {
 	register struct PartitionVars *p = P;
@@ -52,9 +58,13 @@ static void RTreeInitPVars(struct PartitionVars *P, int maxrects, int minfill)
 	}
 }
 
-/*-----------------------------------------------------------------------------
-| Put a branch in one of the groups.
------------------------------------------------------------------------------*/
+/**
+ * @brief 그룹 중 하나에 브랜치를 넣어주도록 합니다.
+ *
+ * @param i seed의 번호에 해당합니다.
+ * @param group 그룹 번호에 해당합니다.
+ * @param p 현재의 PartitionVars 포인터에 해당합니다.
+ */
 static void RTreeClassify(int i, int group, struct PartitionVars *p)
 {
 	assert(p);
@@ -72,12 +82,15 @@ static void RTreeClassify(int i, int group, struct PartitionVars *p)
 	p->count[group]++;
 }
 
-/*-----------------------------------------------------------------------------
-| Pick two rects from set to be the first elements of the two groups.
-| Pick the two that are separated most along any dimension, or overlap least.
-| Distance for separation or overlap is measured modulo the width of the
-| space covered by the entire set along that dimension.
------------------------------------------------------------------------------*/
+/**
+ * @details 2개 그룹의 첫번째 원소 집합에서 2개의 사각형을 선택합니다.
+ * 선택된 2개는 현재 차원에서 가장 분리되어 있고, 겹치는 것을 최소화 되게 선택합니다.
+ *
+ * 분리와 겹침의 거리는 현재 차원에서의 모든 집합 공간에서의 폭(width)에 modulo한 값으로
+ * 설정됩니다.
+ *
+ * @param P 파티션 변수 포인터
+ */
 static void RTreePickSeeds(struct PartitionVars *P)
 {
 	register struct PartitionVars *p = P;
@@ -92,8 +105,9 @@ static void RTreePickSeeds(struct PartitionVars *P)
 	for (dim = 0; dim < NUMDIMS; dim++) {
 		high = dim + NUMDIMS;
 
-		/* find the rectangles farthest out in each direction
-     * along this dimens */
+		/**
+		 * @brief 현재 차원에서 각 방향에서 가장 먼 사각형들을  찾습니다.
+		 */
 		greatestLower[dim] = leastUpper[dim] = 0;
 		for (i = 1; i < NODECARD + 1; i++) {
 			r = &BranchBuf[i].rect;
@@ -107,16 +121,20 @@ static void RTreePickSeeds(struct PartitionVars *P)
 			}
 		}
 
-		/* find width of the whole collection along this dimension */
+		/**
+		 * @brief 현재 차원에서의 모든 집합의 폭을 구합니다.
+		 */
 		width[dim] =
 			CoverSplit.boundary[high] - CoverSplit.boundary[dim];
 	}
 
-	/* pick the best separation dimension and the two seed rects */
+	/**
+	 * @brief 최적의 분리 차원과 2개의 seed 사각형을 구합니다.
+	 *
+	 */
 	for (dim = 0; dim < NUMDIMS; dim++) {
 		high = dim + NUMDIMS;
 
-		/* divisor for normalizing by width */
 		assert(width[dim] >= 0);
 		if (width[dim] == 0)
 			w = (RectReal)1;
@@ -149,21 +167,15 @@ static void RTreePickSeeds(struct PartitionVars *P)
 	}
 }
 
-/*-----------------------------------------------------------------------------
-| Put each rect that is not already in a group into a group.
-| Process one rect at a time, using the following hierarchy of criteria.
-| In case of a tie, go to the next test.
-| 1) If one group already has the max number of elements that will allow
-| the minimum fill for the other group, put r in the other.
-| 2) Put r in the group whose cover will expand less.  This automatically
-| takes care of the case where one group cover contains r.
-| 3) Put r in the group whose cover will be smaller.  This takes care of the
-| case where r is contained in both covers.
-| 4) Put r in the group with fewer elements.
-| 5) Put in group 1 (arbitrary).
-|
-| Also update the covers for both groups.
------------------------------------------------------------------------------*/
+/**
+ * @brief 그룹안에 있지 않은 사각형을 그룹에 넣어주도록 합니다.
+ * @details pigeonhole이란? 비둘기집 원리로
+ * "비둘기의 수보다 비둘기 집의 개수가 적을 경우,
+ * 모든 비둘기 집에 한 마리 이상의 비둘기 들어갔다고하면 어느 집에는
+ * 2 마리 이상의 비둘기가 들어갔다"를 의미합니다.
+ *
+ * @param P 현재 PartitionVars 구조체에 해당합니다.
+ */
 static void RTreePigeonhole(struct PartitionVars *P)
 {
 	register struct PartitionVars *p = P;
@@ -173,7 +185,9 @@ static void RTreePigeonhole(struct PartitionVars *P)
 
 	for (i = 0; i < NODECARD + 1; i++) {
 		if (!p->taken[i]) {
-			/* if one group too full, put rect in the other */
+			/**
+			 * @brief 하나의 그룹이 가득 찬 경우 다른 그룹에 사각형을 넣습니다.
+			 */
 			if (p->count[0] >= p->total - p->minfill) {
 				RTreeClassify(i, 1, p);
 				continue;
@@ -182,7 +196,10 @@ static void RTreePigeonhole(struct PartitionVars *P)
 				continue;
 			}
 
-			/* find areas of the two groups' old and new covers */
+			/**
+			 * @brief 이전 것과 새로운 것을 포함하는 2개의 그룹들의 면적을 찾습니다.
+			 *
+			 */
 			for (group = 0; group < 2; group++) {
 				if (p->count[group] > 0)
 					newCover[group] = RTreeCombineRect(
@@ -196,19 +213,25 @@ static void RTreePigeonhole(struct PartitionVars *P)
 					newArea[group] - p->area[group];
 			}
 
-			/* put rect in group whose cover will expand less */
+			/**
+			 * @brief 그룹 안의 사각형 중 확장량이 최소한인 것을 넣습니다.
+			 */
 			if (increase[0] < increase[1])
 				RTreeClassify(i, 0, p);
 			else if (increase[1] < increase[0])
 				RTreeClassify(i, 1, p);
 
-			/* put rect in group that will have a smaller cover */
+			/**
+			 * @brief 그룹 안의 사각형 중 최대한 적게 포함하는 것을 넣습니다.
+			 */
 			else if (p->area[0] < p->area[1])
 				RTreeClassify(i, 0, p);
 			else if (p->area[1] < p->area[0])
 				RTreeClassify(i, 1, p);
 
-			/* put rect in group with fewer elements */
+			/**
+			 * @brief 그룹 안의 사각형 중에 가장 적은 원소를 가진 그룹을 넣습니다.
+			 */
 			else if (p->count[0] < p->count[1])
 				RTreeClassify(i, 0, p);
 			else
@@ -218,11 +241,12 @@ static void RTreePigeonhole(struct PartitionVars *P)
 	assert(p->count[0] + p->count[1] == NODECARD + 1);
 }
 
-/*-----------------------------------------------------------------------------
-| Method 0 for finding a partition:
-| First find two seeds, one for each group, well separated.
-| Then put other rects in whichever group will be smallest after addition.
------------------------------------------------------------------------------*/
+/**
+ * @brief 파티션을 찾는 0번째 방법입니다.
+ *
+ * @param p 찾은 파티션 값이 들어갑니다.
+ * @param minfill 최소 차야하는 값입니다.
+ */
 static void RTreeMethodZero(struct PartitionVars *p, int minfill)
 {
 	RTreeInitPVars(p, BranchCount, minfill);
@@ -230,9 +254,13 @@ static void RTreeMethodZero(struct PartitionVars *p, int minfill)
 	RTreePigeonhole(p);
 }
 
-/*-----------------------------------------------------------------------------
-| Copy branches from the buffer into two nodes according to the partition.
------------------------------------------------------------------------------*/
+/**
+ * @brief 파티션에 기반해서 2개의 노드들에 버퍼로부터 브랜치에 복사해서 넣습니다.
+ *
+ * @param N 노드 1
+ * @param Q 노드 2
+ * @param P 파티션에 해당합니다.
+ */
 static void RTreeLoadNodes(struct Node *N, struct Node *Q,
 			   struct PartitionVars *P)
 {
@@ -253,74 +281,40 @@ static void RTreeLoadNodes(struct Node *N, struct Node *Q,
 	}
 }
 
-/*-----------------------------------------------------------------------------
-| Split a node.
-| Divides the nodes branches and the extra one between two nodes.
-| Old node is one of the new ones, and one really new one is created.
------------------------------------------------------------------------------*/
+/**
+ * @brief 노드를 split 하도록 합니다. 노드의 브랜치들과 기타 등등을 2개의 노드로 변경합니다.
+ * 새로운 노드들은 이전의 노드와 새로운 노드로 구성됩니다.
+ *
+ * @param n split의 대상이 되는 노드에 해당합니다.
+ * @param b 현재의 branch 정보입니다.
+ * @param nn node들에 대한 인덱스 정보를 가집니다.
+ */
 void RTreeSplitNode(struct Node *n, struct Branch *b, struct Node **nn)
 {
 	register struct PartitionVars *p;
 	register int level;
-	// RectReal area;
 
 	assert(n);
 	assert(b);
 
-	/* load all the branches into a buffer, initialize old node */
+	/**
+	 * @brief 모든 브랜치를 버퍼에 넣고 이전의 노드를 초기화 합니다.
+	 */
 	level = n->level;
 	RTreeGetBranches(n, b);
 
-	/* find partition */
+	/**
+	 * 파티션을 찾도록 합니다. 이때, 0번 방법(Linear Split)을 사용해서 찾습니다.
+	 */
 	p = &Partitions[0];
-
-	/* Note: can't use MINFILL(n) below since n was cleared by GetBranches() */
 	RTreeMethodZero(p, level > 0 ? MinNodeFill : MinLeafFill);
 
-	/* record how good the split was for statistics */
-	// area = p->area[0] + p->area[1];
-
-	/* put branches from buffer in 2 nodes according to chosen partition */
+	/**
+	 * @brief 현재 선택된 파티션에 따라서 2개의 노드를 버퍼에서 브랜치로 넣습니다.
+	 *
+	 */
 	*nn = RTreeNewNode();
 	(*nn)->level = n->level = level;
 	RTreeLoadNodes(n, *nn, p);
 	assert(n->count + (*nn)->count == NODECARD + 1);
 }
-
-#ifdef DEBUG_SPLIT
-static void RTreePrintPVars(struct PartitionVars *p)
-{
-	int i;
-	assert(p);
-
-	printf("\npartition:\n");
-	for (i = 0; i < NODECARD + 1; i++) {
-		printf("%3d\t", i);
-	}
-	printf("\n");
-	for (i = 0; i < NODECARD + 1; i++) {
-		if (p->taken[i])
-			printf("  t\t");
-		else
-			printf("\t");
-	}
-	printf("\n");
-	for (i = 0; i < NODECARD + 1; i++) {
-		printf("%3d\t", p->partition[i]);
-	}
-	printf("\n");
-
-	printf("count[0] = %d  area = %f\n", p->count[0], p->area[0]);
-	printf("count[1] = %d  area = %f\n", p->count[1], p->area[1]);
-	printf("total area = %f  effectiveness = %3.2f\n",
-	       p->area[0] + p->area[1],
-	       RTreeRectSphericalVolume(&CoverSplit) /
-		       (p->area[0] + p->area[1]));
-
-	printf("cover[0]:\n");
-	RTreePrintRect(&p->cover[0], 0);
-
-	printf("cover[1]:\n");
-	RTreePrintRect(&p->cover[1], 0);
-}
-#endif

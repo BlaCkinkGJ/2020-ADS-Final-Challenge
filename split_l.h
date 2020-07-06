@@ -1,7 +1,4 @@
 
-/*-----------------------------------------------------------------------------
-| Definitions and global variables used in linear split code.
------------------------------------------------------------------------------*/
 #include "index.h"
 
 #define METHODS 1
@@ -10,7 +7,9 @@ struct Branch BranchBuf[MAXCARD + 1];
 int BranchCount;
 struct Rect CoverSplit;
 
-/* variables for finding a partition */
+/**
+ * @brief 파티션을 찾는 변수입니다.
+ */
 struct PartitionVars {
 	int partition[MAXCARD + 1];
 	int total, minfill;
