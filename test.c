@@ -154,9 +154,9 @@ int main(void)
 			RTreeSearch(root, &rect, SearchCallback, 0);
 			fprintf(fout, "%ld", nhits);
 			if (nhits == 0) {
-				fprintf(fout, "\n");
+				fprintf(fout, "\r\n");
 			} else {
-				fprintf(fout, " %ld\n", max_id);
+				fprintf(fout, " %ld\r\n", max_id);
 			}
 
 			break;
